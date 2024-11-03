@@ -70,6 +70,10 @@ async function send_group_record (file: any) {
   })
 }
 
+async function send_user_record (file: any) {
+  await send_private_msg(file)
+}
+
 async function send_private_msg (file: any) {
   await onebot_call('send_msg', {
     user_id: user_id.value,
@@ -146,8 +150,9 @@ async function blob_to_dataurl (blob: Blob) : Promise<string> {
   </div>
 
   <div>
-    <button @click="send_group_msg_text('你好')">send_group_msg_text</button>
-    <button @click="send_group_record(record_file)">send_group_record</button>
+    <!-- <button @click="send_group_msg_text('你好')">send_group_msg_text</button> -->
+    <button @click="send_group_record(record_file)">发送音频文件到群</button>
+    <button @click="send_user_record(record_file)">发送音频文件到用户</button>
   </div>
 
   <div>
