@@ -17,7 +17,7 @@ const http_host = ref('127.0.0.1')
 const http_port = ref('3000')
 const info = ref('')
 const record_file = ref('')
-const group_id = ref('901960752')
+const group_id = ref('')
 const isRecording = ref(false)
 const blob_url = ref('')
 
