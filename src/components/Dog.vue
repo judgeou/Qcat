@@ -42,20 +42,6 @@ async function onebot_call (action = 'send_group_msg', params: any) {
   }
 }
 
-async function send_group_msg_text (content = '你好') {
-  await onebot_call('send_group_msg', {
-    group_id: group_id.value,
-    message: [
-      {
-          "type": "text",
-          "data": {
-              "text": content
-          }
-      }
-    ]
-  })
-}
-
 async function send_group_record (file: any) {
   await onebot_call('send_group_msg', {
     group_id: group_id.value,
