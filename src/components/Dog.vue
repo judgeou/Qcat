@@ -18,6 +18,7 @@ const http_port = ref('3000')
 const info = ref('')
 const record_file = ref('')
 const group_id = ref('')
+const user_id = ref('')
 const isRecording = ref(false)
 const blob_url = ref('')
 
@@ -69,6 +70,14 @@ async function send_group_record (file: any) {
   })
 }
 
+async function send_private_msg (file: any) {
+  await onebot_call('send_msg', {
+    user_id: user_id.value,
+    message_type: 'private',
+    message: [{ "type": "record", "data": { "file": file } }]
+  })
+}
+
 async function send_record () {
   isRecording.value = true
   let audioChunks = [] as Blob[];
@@ -110,6 +119,11 @@ async function send_record_to_group () {
   await send_group_record(dataurl)
 }
 
+async function send_record_to_user () {
+  const dataurl = await blob_to_dataurl(audioBlob)
+  await send_private_msg(dataurl)
+}
+
 async function blob_to_dataurl (blob: Blob) : Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -127,6 +141,7 @@ async function blob_to_dataurl (blob: Blob) : Promise<string> {
   </div>
   <div>
     <input type="text" v-model="group_id" placeholder="QQ 群号">
+    <input type="text" v-model="user_id" placeholder="QQ 用户号">
     <input type="text" v-model="record_file" placeholder="音频文件本地路径">
   </div>
 
@@ -140,6 +155,7 @@ async function blob_to_dataurl (blob: Blob) : Promise<string> {
     <button @click="stopRecording()" v-if="isRecording">停止录音</button>
     <audio :src="blob_url" controls v-if="blob_url"></audio>
     <button v-if="blob_url" @click="send_record_to_group()">发送到群</button>
+    <button v-if="blob_url" @click="send_record_to_user()">发送到用户</button>
   </div>
 
 
