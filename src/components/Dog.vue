@@ -26,6 +26,7 @@ const blob_url = ref('')
 const image_text = ref('')
 const image_file = ref<File | null>(null)
 const is_merge_forward = ref(false)
+const response_info = ref()
 let mediaRecorder: MediaRecorder;
 let audioBlob: Blob;
 
@@ -41,6 +42,7 @@ async function onebot_call (action = 'send_group_msg', params: any) {
     })
 
     info.value = await response.text()
+    response_info.value = JSON.parse(info.value)
   } catch (error) {
     info.value = (error as any).toString()
   }
@@ -168,6 +170,10 @@ async function send_image_to_group () {
     await send_group_image(dataurl)
   }
 }
+
+async function delete_message () {
+  await onebot_call('delete_msg', { message_id: response_info.value.data.message_id })
+}
 </script>
 
 <template>
@@ -205,6 +211,10 @@ async function send_image_to_group () {
   <p>
     {{ info }}
   </p>
+
+  <div class="row">
+    <button v-if="response_info && response_info.data && response_info.data.message_id" @click="delete_message()">撤回消息</button>
+  </div>
 </template>
 
 <style scoped>
