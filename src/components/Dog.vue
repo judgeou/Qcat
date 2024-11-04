@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onUnmounted, h } from 'vue'
 import { random_id, storage_ref } from '../lib'
-import { useNotification, NButton, NInput, NCheckbox, NUpload }  from 'naive-ui'
+import { useNotification, NButton, NInput, NInputNumber, NCheckbox, NUpload }  from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
 
 const notification = useNotification()
@@ -31,6 +31,7 @@ const blob_url = ref('')
 const image_text = ref('')
 const image_file = ref<File | null>(null)
 const is_merge_forward = ref(false)
+const delete_after_seconds = ref(20)
 const response_info = ref()
 const login_info = ref()
 const message_list = ref([] as any[])
@@ -38,7 +39,7 @@ const message_list = ref([] as any[])
 let mediaRecorder: MediaRecorder;
 let audioBlob: Blob;
 
-async function onebot_call (action = 'send_group_msg', params: any) {
+async function onebot_call (action = 'send_group_msg', params: any) : Promise<any> {
   info.value = 'sending...'
   try {
     const response = await fetch(`http://${http_host.value}:${http_port.value}/${action}`, {
@@ -51,13 +52,15 @@ async function onebot_call (action = 'send_group_msg', params: any) {
 
     info.value = await response.text()
     response_info.value = JSON.parse(info.value)
+
+    return response_info.value
   } catch (error) {
     info.value = (error as any).toString()
   }
 }
 
 async function send_group_record (file: any) {
-  await onebot_call('send_group_msg', {
+  return onebot_call('send_group_msg', {
     group_id: group_id.value,
     message: [
       {
@@ -84,14 +87,14 @@ async function send_group_image (dataurl: string) {
       "content": content
     } }]
 
-    await onebot_call('send_forward_msg', {
+    return onebot_call('send_forward_msg', {
       group_id: group_id.value,
       message: messages
     })
   } else {
     messages = [{ "type": "image", "data": { "file": dataurl } }]
 
-    await onebot_call('send_group_msg', {
+    return onebot_call('send_group_msg', {
       group_id: group_id.value,
       message: messages
     })
@@ -99,11 +102,11 @@ async function send_group_image (dataurl: string) {
 }
 
 async function send_user_record (file: any) {
-  await send_private_msg(file)
+  return send_private_msg(file)
 }
 
 async function send_private_msg (file: any) {
-  await onebot_call('send_msg', {
+  return onebot_call('send_msg', {
     user_id: user_id.value,
     message_type: 'private',
     message: [{ "type": "record", "data": { "file": file } }]
@@ -148,12 +151,12 @@ async function stopRecording () {
 
 async function send_record_to_group () {
   const dataurl = await blob_to_dataurl(audioBlob)
-  await send_group_record(dataurl)
+  return send_group_record(dataurl)
 }
 
 async function send_record_to_user () {
   const dataurl = await blob_to_dataurl(audioBlob)
-  await send_private_msg(dataurl)
+  return send_private_msg(dataurl)
 }
 
 async function blob_to_dataurl (blob: Blob | File) : Promise<string> {
@@ -174,12 +177,17 @@ function onFileChange (options: { fileList: UploadFileInfo[] }) {
 async function send_image_to_group () {
   if (image_file.value) {
     const dataurl = await blob_to_dataurl(image_file.value)
-    await send_group_image(dataurl)
+    const result = await send_group_image(dataurl)
+    if (result.data.message_id && delete_after_seconds.value > 0) {
+      setTimeout(() => {
+        delete_message()
+      }, delete_after_seconds.value * 1000)
+    }
   }
 }
 
 async function delete_message () {
-  await onebot_call('delete_msg', { message_id: response_info.value.data.message_id })
+  return onebot_call('delete_msg', { message_id: response_info.value.data.message_id })
 }
 
 onebot_call('get_login_info', {}).then(() => {
@@ -189,12 +197,11 @@ onebot_call('get_login_info', {}).then(() => {
 const ws = new WebSocket(`ws://${http_host.value}:${ws_port.value}/event`)
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data)
-  console.log(data)
 
   if (data.post_type === 'message') {
     message_list.value.push(data)
 
-    if (message_list.value.length > 10) {
+    if (message_list.value.length > 50) {
       message_list.value.shift()
     }
 
@@ -211,13 +218,23 @@ ws.onmessage = (event) => {
     } else if (message[0].type === 'image') {
       notification.info({
         title,
-        content: () => h('a', { href: message[0].data.url, target: '_blank' }, '图片'),
+        content: () => h('a', { href: message[0].data.url, target: '_blank', rel: 'noreferrer' }, '图片'),
         duration
       })
     }
 
   }
 }
+
+function print_message_concat () {
+  const message_concat = message_list.value
+  .filter(data => data.message[0].type === 'text' && data.group_id === group_id.value)
+  .slice(0, 10)
+  .map(data => `* ${data.sender.nickname}: ${data.message[0].data.text}\n`).join('')
+  console.log(message_concat)
+}
+
+(window as any).print_message_concat = print_message_concat
 
 onUnmounted(() => {
   ws.close()
@@ -261,6 +278,7 @@ onUnmounted(() => {
 
   <div class="row">
     <NCheckbox v-model:checked="is_merge_forward"> 合并转发</NCheckbox>
+    <NInputNumber v-model:value="delete_after_seconds" :min="1" :max="59" :show-button="false" style="width: 70px;" /> 秒后自动撤回
     <NButton ghost type="primary" @click="send_image_to_group()">发送涩图到群</NButton>
   </div>
 
