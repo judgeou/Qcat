@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { random_id, storage_ref } from '../lib'
 
 const media_constraints = {
   audio: {
@@ -11,14 +12,15 @@ const media_constraints = {
     sampleSize: 24 // 16-bit audio
   }
 }
+
 const format_codec = 'audio/webm'
 
 const http_host = ref('127.0.0.1')
 const http_port = ref('3000')
 const info = ref('')
 const record_file = ref('')
-const group_id = ref('')
-const user_id = ref('')
+const group_id = storage_ref('group_id', '')
+const user_id = storage_ref('user_id', '')
 const isRecording = ref(false)
 const blob_url = ref('')
 const image_text = ref('')
@@ -26,10 +28,6 @@ const image_file = ref<File | null>(null)
 const is_merge_forward = ref(false)
 let mediaRecorder: MediaRecorder;
 let audioBlob: Blob;
-
-function random_id (min = 100000000, max = 900000000) {
-  return Math.floor(Math.random() * (max - min + 1)) + min
-}
 
 async function onebot_call (action = 'send_group_msg', params: any) {
   info.value = 'sending...'
