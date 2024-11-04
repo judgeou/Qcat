@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onUnmounted, h } from 'vue'
 import { random_id, storage_ref } from '../lib'
+import { useNotification, NButton, NInput, NCheckbox, NUpload }  from 'naive-ui'
+import type { UploadFileInfo } from 'naive-ui'
+
+const notification = useNotification()
 
 const media_constraints = {
   audio: {
@@ -17,6 +21,7 @@ const format_codec = 'audio/webm'
 
 const http_host = ref('127.0.0.1')
 const http_port = ref('3000')
+const ws_port = ref('3001')
 const info = ref('')
 const record_file = ref('')
 const group_id = storage_ref('group_id', '')
@@ -27,6 +32,9 @@ const image_text = ref('')
 const image_file = ref<File | null>(null)
 const is_merge_forward = ref(false)
 const response_info = ref()
+const login_info = ref()
+const message_list = ref([] as any[])
+
 let mediaRecorder: MediaRecorder;
 let audioBlob: Blob;
 
@@ -157,10 +165,9 @@ async function blob_to_dataurl (blob: Blob | File) : Promise<string> {
   })
 }
 
-function onFileChange (event: Event) {
-  const files = (event.target as HTMLInputElement).files
-  if (files && files.length > 0) {
-    image_file.value = files[0]
+function onFileChange (options: { fileList: UploadFileInfo[] }) {
+  if (options.fileList && options.fileList.length > 0) {
+    image_file.value = options.fileList[0].file!
   }
 }
 
@@ -174,38 +181,87 @@ async function send_image_to_group () {
 async function delete_message () {
   await onebot_call('delete_msg', { message_id: response_info.value.data.message_id })
 }
+
+onebot_call('get_login_info', {}).then(() => {
+  login_info.value = response_info.value
+})
+
+const ws = new WebSocket(`ws://${http_host.value}:${ws_port.value}/event`)
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data)
+  console.log(data)
+
+  if (data.post_type === 'message') {
+    message_list.value.push(data)
+
+    if (message_list.value.length > 10) {
+      message_list.value.shift()
+    }
+
+    const { message } = data
+    const duration = 5000
+    const title = `【${data.group_id}】${data.sender.nickname}`
+
+    if (message[0].type === 'text') {
+      notification.info({
+        title,
+        content: message[0].data.text,
+        duration
+      })
+    } else if (message[0].type === 'image') {
+      notification.info({
+        title,
+        content: () => h('a', { href: message[0].data.url, target: '_blank' }, '图片'),
+        duration
+      })
+    }
+
+  }
+}
+
+onUnmounted(() => {
+  ws.close()
+})
 </script>
 
 <template>
   <h1>Qcat</h1>
   <h2>兼容 <a href="https://napcat.napneko.icu/" target="_blank">NapCatQQ</a></h2>
+  <h3 v-if="login_info && login_info.data">欢迎 {{ login_info.data.nickname }}</h3>
   <div class="row">
-    <input type="text" v-model="http_port" placeholder="HTTP 服务端口">
+    <NInput v-model:value="http_port" placeholder="HTTP 服务端口" />
+    <NInput v-model:value="ws_port" placeholder="WebSocket 正向服务端口" />
   </div>
   <div class="row">
-    <input type="text" v-model="group_id" placeholder="QQ 群号">
-    <input type="text" v-model="user_id" placeholder="QQ 用户号">
-  </div>
-
-  <div class="row">
-    <input type="text" v-model="record_file" placeholder="音频文件本地路径">
-    <button @click="send_group_record(record_file)">发送音频文件到群</button>
-    <button @click="send_user_record(record_file)">发送音频文件到用户</button>
+    <NInput v-model:value="group_id" placeholder="QQ 群号" />
+    <NInput v-model:value="user_id" placeholder="QQ 用户号" />
   </div>
 
   <div class="row">
-    <button @click="send_record()" v-if="!isRecording">开始录音</button>
-    <button @click="stopRecording()" v-if="isRecording">停止录音</button>
+    <NInput v-model:value="record_file" placeholder="音频文件本地路径" />
+    <NButton ghost type="primary" @click="send_group_record(record_file)">发送音频文件到群</NButton>
+    <NButton ghost type="info" @click="send_user_record(record_file)">发送音频文件到用户</NButton>
+  </div>
+
+  <div class="row">
+    <NButton ghost type="error" @click="send_record()" v-if="!isRecording">开始录音</NButton>
+    <NButton ghost type="warning" @click="stopRecording()" v-if="isRecording">停止录音</NButton>
     <audio :src="blob_url" controls v-if="blob_url"></audio>
-    <button v-if="blob_url" @click="send_record_to_group()">发送到群</button>
-    <button v-if="blob_url" @click="send_record_to_user()">发送到用户</button>
+    <NButton ghost type="primary" @click="send_record_to_group()" v-if="blob_url">发送到群</NButton>
+    <NButton ghost type="info" @click="send_record_to_user()" v-if="blob_url">发送到用户</NButton>
   </div>
 
   <div class="row">
-    <input type="file" @change="onFileChange">
+    <NUpload @change="onFileChange" list-type="image-card">
+      <NButton ghost type="primary">上传图片</NButton>
+    </NUpload>
     <!-- <input type="text" v-model="image_text" placeholder="涩图描述"> -->
-    <input type="checkbox" v-model="is_merge_forward"> 合并转发
-    <button @click="send_image_to_group()">发送涩图到群</button>
+
+  </div>
+
+  <div class="row">
+    <NCheckbox v-model:checked="is_merge_forward"> 合并转发</NCheckbox>
+    <NButton ghost type="primary" @click="send_image_to_group()">发送涩图到群</NButton>
   </div>
 
   <p>
