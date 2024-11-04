@@ -179,15 +179,16 @@ async function send_image_to_group () {
     const dataurl = await blob_to_dataurl(image_file.value)
     const result = await send_group_image(dataurl)
     if (result.data.message_id && delete_after_seconds.value > 0) {
+      let message_id = result.data.message_id
       setTimeout(() => {
-        delete_message()
+        delete_message(message_id)
       }, delete_after_seconds.value * 1000)
     }
   }
 }
 
-async function delete_message () {
-  return onebot_call('delete_msg', { message_id: response_info.value.data.message_id })
+async function delete_message (message_id: number) {
+  return onebot_call('delete_msg', { message_id })
 }
 
 onebot_call('get_login_info', {}).then(() => {
@@ -287,7 +288,7 @@ onUnmounted(() => {
   </p>
 
   <div class="row">
-    <button v-if="response_info && response_info.data && response_info.data.message_id" @click="delete_message()">撤回消息</button>
+    <button v-if="response_info && response_info.data && response_info.data.message_id" @click="delete_message(response_info.data.message_id)">撤回消息</button>
   </div>
 </template>
 
