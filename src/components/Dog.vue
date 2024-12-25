@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onUnmounted, h } from 'vue'
+import { ref } from 'vue'
 import { random_id, storage_ref } from '../lib'
-import { useNotification, NButton, NInput, NInputNumber, NCheckbox, NUpload }  from 'naive-ui'
+import { NButton, NInput, NInputNumber, NCheckbox, NUpload }  from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
 
-const notification = useNotification()
+// const notification = useNotification()
 
 const media_constraints = {
   audio: {
@@ -24,6 +24,8 @@ const http_port = ref('3000')
 const ws_port = ref('3001')
 const info = ref('')
 const record_file = ref('')
+const video_file = ref('')
+const video_file_url = ref('')
 const group_id = storage_ref('group_id', '')
 const user_id = storage_ref('user_id', '')
 const isRecording = ref(false)
@@ -34,7 +36,7 @@ const is_merge_forward = ref(false)
 const delete_after_seconds = ref(20)
 const response_info = ref()
 const login_info = ref()
-const message_list = ref([] as any[])
+// const message_list = ref([] as any[])
 
 let mediaRecorder: MediaRecorder;
 let audioBlob: Blob;
@@ -73,6 +75,20 @@ async function send_group_record (file: any) {
   })
 }
 
+async function send_group_video (file: any) {
+  return onebot_call('send_group_msg', {
+    group_id: group_id.value,
+    message: [{ "type": "video", "data": { "file": file } }]
+  })
+}
+
+async function send_group_video_url (url: string) {
+  return onebot_call('send_group_msg', {
+    group_id: group_id.value,
+    message: [{ "type": "video", "data": { "file": url } }]
+  })
+}
+
 async function send_group_image (dataurl: string) {
   let messages = []
   if (is_merge_forward.value) {
@@ -88,6 +104,7 @@ async function send_group_image (dataurl: string) {
     } }]
 
     return onebot_call('send_forward_msg', {
+      message_type: 'group',
       group_id: group_id.value,
       message: messages
     })
@@ -137,6 +154,7 @@ async function send_record () {
       URL.revokeObjectURL(blob_url.value)
     }
     blob_url.value = URL.createObjectURL(audioBlob)
+    stream.getTracks().forEach(track => track.stop())
   }
 
   mediaRecorder.start();
@@ -168,6 +186,11 @@ async function blob_to_dataurl (blob: Blob | File) : Promise<string> {
   })
 }
 
+// function dataurl_to_base64url (dataurl: string) {
+//   console.log(dataurl.slice(0, 100))
+//   return dataurl.replace(/^data:\w+\/\w+;base64,/, 'base64://')
+// }
+
 function onFileChange (options: { fileList: UploadFileInfo[] }) {
   if (options.fileList && options.fileList.length > 0) {
     image_file.value = options.fileList[0].file!
@@ -195,51 +218,56 @@ onebot_call('get_login_info', {}).then(() => {
   login_info.value = response_info.value
 })
 
-const ws = new WebSocket(`ws://${http_host.value}:${ws_port.value}/event`)
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data)
+// function start_event () {
+//   const ws = new WebSocket(`ws://${http_host.value}:${ws_port.value}/event`)
+//   ws.onmessage = (event) => {
+//     const data = JSON.parse(event.data)
 
-  if (data.post_type === 'message') {
-    message_list.value.push(data)
+//     if (data.post_type === 'message') {
+//       message_list.value.push(data)
 
-    if (message_list.value.length > 50) {
-      message_list.value.shift()
-    }
+//     if (message_list.value.length > 50) {
+//       message_list.value.shift()
+//     }
 
-    const { message } = data
-    const duration = 5000
-    const title = `【${data.group_id}】${data.sender.nickname}`
+//     const { message } = data
+//     const duration = 5000
+//     const title = `【${data.group_id}】${data.sender.nickname}`
 
-    if (message[0].type === 'text') {
-      notification.info({
-        title,
-        content: message[0].data.text,
-        duration
-      })
-    } else if (message[0].type === 'image') {
-      notification.info({
-        title,
-        content: () => h('a', { href: message[0].data.url, target: '_blank', rel: 'noreferrer' }, '图片'),
-        duration
-      })
-    }
+//     if (message[0].type === 'text') {
+//       notification.info({
+//         title,
+//         content: message[0].data.text,
+//         duration
+//       })
+//     } else if (message[0].type === 'image') {
+//       notification.info({
+//         title,
+//         content: () => h('a', { href: message[0].data.url, target: '_blank', rel: 'noreferrer' }, '图片'),
+//         duration
+//         })
+//       }
+//     }
+//   }
 
-  }
-}
+//   onUnmounted(() => {
+//     ws.close()
+//   })
+// }
 
-function print_message_concat () {
-  const message_concat = message_list.value
-  .filter(data => data.message[0].type === 'text' && data.group_id === group_id.value)
-  .slice(0, 10)
-  .map(data => `* ${data.sender.nickname}: ${data.message[0].data.text}\n`).join('')
-  console.log(message_concat)
-}
+// function print_message_concat () {
+//   const message_concat = message_list.value
+//   .filter(data => data.message[0].type === 'text' && data.group_id === group_id.value)
+//   .slice(0, 10)
+//   .map(data => `* ${data.sender.nickname}: ${data.message[0].data.text}\n`).join('')
+//   console.log(message_concat)
+// }
 
-(window as any).print_message_concat = print_message_concat
+// console.log(start_event, print_message_concat)
 
-onUnmounted(() => {
-  ws.close()
-})
+// (window as any).print_message_concat = print_message_concat
+
+// start_event()
 </script>
 
 <template>
@@ -262,6 +290,16 @@ onUnmounted(() => {
   </div>
 
   <div class="row">
+    <NInput v-model:value="video_file" placeholder="视频文件本地路径" />
+    <NButton ghost type="primary" @click="send_group_video(video_file)">发送视频文件到群</NButton>
+  </div>
+
+  <div class="row">
+    <NInput v-model:value="video_file_url" placeholder="视频文件远程路径" />
+    <NButton ghost type="primary" @click="send_group_video_url(video_file_url)">发送视频到群</NButton>
+  </div>
+
+  <div class="row">
     <NButton ghost type="error" @click="send_record()" v-if="!isRecording">开始录音</NButton>
     <NButton ghost type="warning" @click="stopRecording()" v-if="isRecording">停止录音</NButton>
     <audio :src="blob_url" controls v-if="blob_url"></audio>
@@ -279,7 +317,7 @@ onUnmounted(() => {
 
   <div class="row">
     <NCheckbox v-model:checked="is_merge_forward"> 合并转发</NCheckbox>
-    <NInputNumber v-model:value="delete_after_seconds" :min="1" :max="59" :show-button="false" style="width: 70px;" /> 秒后自动撤回
+    <NInputNumber v-model:value="delete_after_seconds" :min="0" :max="59" :show-button="false" style="width: 70px;" /> 秒后自动撤回
     <NButton ghost type="primary" @click="send_image_to_group()">发送涩图到群</NButton>
   </div>
 
