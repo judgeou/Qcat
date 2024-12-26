@@ -76,10 +76,24 @@ async function send_group_record (file: any) {
 }
 
 async function send_group_video (file: any) {
-  return onebot_call('send_group_msg', {
-    group_id: group_id.value,
-    message: [{ "type": "video", "data": { "file": file } }]
-  })
+  if (is_merge_forward.value) {
+    const content = [{ "type": "video", "data": { "file": file } }]
+    const messages = [{ "type": "node", "data": {
+      "user_id": random_id().toString(),
+      "nickname": "QQ 用户",
+      "content": content
+    } }]
+    return onebot_call('send_forward_msg', {
+      message_type: 'group',
+      group_id: group_id.value,
+      message: messages
+    })
+  } else {
+    return onebot_call('send_group_msg', {
+      group_id: group_id.value,
+      message: [{ "type": "video", "data": { "file": file } }]
+    })
+  }
 }
 
 async function send_group_video_url (url: string) {
