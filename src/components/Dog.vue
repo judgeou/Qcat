@@ -32,8 +32,9 @@ const isRecording = ref(false)
 const blob_url = ref('')
 const image_text = ref('')
 const image_file = ref<File | null>(null)
+const image_files = ref<File[]>([])
 const is_merge_forward = ref(false)
-const delete_after_seconds = ref(20)
+const delete_after_seconds = ref(0)
 const response_info = ref()
 const login_info = ref()
 // const message_list = ref([] as any[])
@@ -103,14 +104,16 @@ async function send_group_video_url (url: string) {
   })
 }
 
-async function send_group_image (dataurl: string) {
+async function send_group_image (dataurl: string[]) {
   let messages = []
   if (is_merge_forward.value) {
     const content = []
     if (image_text.value) {
       content.push({ "type": "text", "data": { "text": image_text.value } })
     }
-    content.push({ "type": "image", "data": { "file": dataurl } })
+    dataurl.forEach(url => {
+      content.push({ "type": "image", "data": { "file": url } })
+    })
     messages = [{ "type": "node", "data": {
       "user_id": random_id().toString(),
       "nickname": "QQ 用户",
@@ -123,7 +126,7 @@ async function send_group_image (dataurl: string) {
       message: messages
     })
   } else {
-    messages = [{ "type": "image", "data": { "file": dataurl } }]
+    messages = dataurl.map(url => ({ "type": "image", "data": { "file": url } }))
 
     return onebot_call('send_group_msg', {
       group_id: group_id.value,
@@ -191,13 +194,18 @@ async function send_record_to_user () {
   return send_private_msg(dataurl)
 }
 
-async function blob_to_dataurl (blob: Blob | File) : Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(blob)
-  })
+async function blob_to_dataurl (blob: Blob | File[]) : Promise<string[]> {
+  const blob_list = blob instanceof Array ? blob : [blob]
+  const dataurl_list = await Promise.all(blob_list.map(async (blob) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(blob)
+    })
+  }))
+
+  return dataurl_list as string[]
 }
 
 // function dataurl_to_base64url (dataurl: string) {
@@ -208,12 +216,13 @@ async function blob_to_dataurl (blob: Blob | File) : Promise<string> {
 function onFileChange (options: { fileList: UploadFileInfo[] }) {
   if (options.fileList && options.fileList.length > 0) {
     image_file.value = options.fileList[0].file!
+    image_files.value = options.fileList.map(file => file.file!)
   }
 }
 
 async function send_image_to_group () {
-  if (image_file.value) {
-    const dataurl = await blob_to_dataurl(image_file.value)
+  if (image_files.value.length > 0) {
+    const dataurl = await blob_to_dataurl(image_files.value)
     const result = await send_group_image(dataurl)
     if (result.data.message_id && delete_after_seconds.value > 0) {
       let message_id = result.data.message_id
@@ -322,7 +331,7 @@ onebot_call('get_login_info', {}).then(() => {
   </div>
 
   <div class="row">
-    <NUpload @change="onFileChange" list-type="image-card">
+    <NUpload @change="onFileChange" list-type="image-card" :max="5">
       <NButton ghost type="primary">上传图片</NButton>
     </NUpload>
     <!-- <input type="text" v-model="image_text" placeholder="涩图描述"> -->
