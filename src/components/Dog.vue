@@ -295,7 +295,6 @@ onebot_call('get_login_info', {}).then(() => {
 
 <template>
   <h1>Qcat</h1>
-  <h2>兼容 <a href="https://napcat.napneko.icu/" target="_blank">NapCatQQ</a></h2>
   <h3 v-if="login_info && login_info.data">欢迎 {{ login_info.data.nickname }}</h3>
   <div class="row">
     <NInput v-model:value="http_port" placeholder="HTTP 服务端口" />
